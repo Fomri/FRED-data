@@ -162,14 +162,12 @@
       canvas.height = 180;
       const ctx = canvas.getContext('2d');
 
-      // רקע כחול עמוק
       const grad = ctx.createLinearGradient(0, 0, 180, 180);
       grad.addColorStop(0, '#1e40af');
       grad.addColorStop(1, '#0f172a');
       ctx.fillStyle = grad;
       ctx.fillRect(0, 0, 180, 180);
 
-      // פס דק בתחתית שמזכיר גרף
       ctx.strokeStyle = '#60a5fa';
       ctx.lineWidth = 4;
       ctx.beginPath();
@@ -179,7 +177,6 @@
       ctx.lineTo(160, 108);
       ctx.stroke();
 
-      // טקסט FRED
       ctx.fillStyle = '#ffffff';
       ctx.font = '800 44px -apple-system, BlinkMacSystemFont, sans-serif';
       ctx.textAlign = 'center';
@@ -216,8 +213,9 @@
       },
       timeScale: {
         borderColor: 'rgba(255, 255, 255, 0.08)',
-        fixLeftEdge: false,
-        fixRightEdge: false,
+        fixLeftEdge: true,
+        fixRightEdge: true,
+        minBarSpacing: 0.5,
       },
       handleScroll: {
         mouseWheel: true,
@@ -251,31 +249,71 @@
         });
 
     let allData = [];
+    let firstTs = null;
+    let lastTs = null;
+    let isClampingRange = false;
 
-    function dateToUnixSeconds(dateStr) {
-      const [y, m, d] = dateStr.split('-').map(Number);
+    function dateToUnixSeconds(dateInput) {
+      if (typeof dateInput === 'number') return dateInput;
+      if (typeof dateInput === 'object' && dateInput !== null) {
+        return Math.floor(Date.UTC(dateInput.year, dateInput.month - 1, dateInput.day) / 1000);
+      }
+      const [y, m, d] = String(dateInput).split('-').map(Number);
       return Math.floor(Date.UTC(y, m - 1, d) / 1000);
     }
 
-    function applyRange(range) {
-      if (!allData.length) return;
+    function setLockedVisibleRange(fromTs, toTs) {
+      isClampingRange = true;
+      chart.timeScale().setVisibleRange({ from: fromTs, to: toTs });
+      isClampingRange = false;
+    }
 
-      if (range === 'ALL') {
-        chart.timeScale().fitContent();
+    function clampVisibleRange(range) {
+      if (isClampingRange || !range || firstTs === null || lastTs === null) return;
+
+      const from = dateToUnixSeconds(range.from);
+      const to = dateToUnixSeconds(range.to);
+      const span = Math.max(0, to - from);
+      const totalSpan = Math.max(0, lastTs - firstTs);
+
+      if (span >= totalSpan) {
+        setLockedVisibleRange(firstTs, lastTs);
         return;
       }
 
-      const lastItem = allData[allData.length - 1];
-      const toTs = dateToUnixSeconds(lastItem.time);
+      let clampedFrom = from;
+      let clampedTo = to;
+
+      if (clampedFrom < firstTs) {
+        clampedFrom = firstTs;
+        clampedTo = Math.min(lastTs, firstTs + span);
+      }
+
+      if (clampedTo > lastTs) {
+        clampedTo = lastTs;
+        clampedFrom = Math.max(firstTs, lastTs - span);
+      }
+
+      if (clampedFrom !== from || clampedTo !== to) {
+        setLockedVisibleRange(clampedFrom, clampedTo);
+      }
+    }
+
+    function applyRange(range) {
+      if (!allData.length || firstTs === null || lastTs === null) return;
+
+      if (range === 'ALL') {
+        setLockedVisibleRange(firstTs, lastTs);
+        return;
+      }
+
       const yearsMap = { '1Y': 1, '3Y': 3, '5Y': 5, '10Y': 10 };
       const years = yearsMap[range];
-      const [y, m, d] = lastItem.time.split('-').map(Number);
-      const fromTs = Math.floor(Date.UTC(y - years, m - 1, d) / 1000);
+      const [y, m, d] = allData[allData.length - 1].time.split('-').map(Number);
+      const rawFrom = Math.floor(Date.UTC(y - years, m - 1, d) / 1000);
+      const fromTs = Math.max(firstTs, rawFrom);
 
-      chart.timeScale().setVisibleRange({
-        from: fromTs,
-        to: toTs,
-      });
+      setLockedVisibleRange(fromTs, lastTs);
     }
 
     document.querySelectorAll('.range-btn').forEach((btn) => {
@@ -304,8 +342,12 @@
         }
 
         allData = data;
+        firstTs = dateToUnixSeconds(allData[0].time);
+        lastTs = dateToUnixSeconds(allData[allData.length - 1].time);
+
         areaSeries.setData(allData);
-        chart.timeScale().fitContent();
+        setLockedVisibleRange(firstTs, lastTs);
+        chart.timeScale().subscribeVisibleTimeRangeChange(clampVisibleRange);
       } catch (err) {
         container.innerHTML = `<div class="status-msg" style="color:#f87171;">Error loading data: ${err.message}</div>`;
       }
