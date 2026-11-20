@@ -3,36 +3,166 @@
 <head>
   <meta charset="UTF-8" />
   <meta name="viewport" content="width=device-width, initial-scale=1.0" />
-  <title>RBILBIS Chart</title>
-  <script src="charting_library/charting_library.standalone.js"></script>
-  <script src="datafeeds/udf/dist/bundle.js"></script>
+  <title>RBILBIS - Lightweight Charts</title>
+  <script src="https://unpkg.com/lightweight-charts/dist/lightweight-charts.standalone.production.js"></script>
   <style>
-    html, body, #tv_chart_container {
+    body {
       margin: 0;
-      padding: 0;
+      padding: 16px;
+      font-family: system-ui, -apple-system, sans-serif;
+      background: #ffffff;
+      color: #111827;
+    }
+    .header {
+      display: flex;
+      flex-wrap: wrap;
+      justify-content: space-between;
+      align-items: center;
+      gap: 12px;
+      margin-bottom: 12px;
+    }
+    .title {
+      font-size: 18px;
+      font-weight: 700;
+    }
+    .subtitle {
+      font-size: 13px;
+      color: #6b7280;
+    }
+    .range-switcher {
+      display: flex;
+      gap: 6px;
+      direction: ltr;
+    }
+    .range-btn {
+      border: 1px solid #d1d5db;
+      background: #f9fafb;
+      color: #111827;
+      padding: 6px 12px;
+      border-radius: 6px;
+      cursor: pointer;
+      font-size: 13px;
+      font-weight: 600;
+    }
+    .range-btn:hover {
+      background: #e5e7eb;
+    }
+    .range-btn.active {
+      background: #2563eb;
+      color: #ffffff;
+      border-color: #2563eb;
+    }
+    #chart {
       width: 100%;
-      height: 100vh;
+      height: 520px;
     }
   </style>
 </head>
 <body>
-  <div id="tv_chart_container"></div>
+  <div class="header">
+    <div>
+      <div class="title">RBILBIS — Real Broad Effective Exchange Rate for Israel</div>
+      <div class="subtitle">נתונים חודשיים מ-FRED דרך Cloudflare Worker</div>
+    </div>
+
+    <div class="range-switcher" id="rangeSwitcher">
+      <button class="range-btn" data-range="1Y">1Y</button>
+      <button class="range-btn" data-range="3Y">3Y</button>
+      <button class="range-btn" data-range="5Y">5Y</button>
+      <button class="range-btn" data-range="10Y">10Y</button>
+      <button class="range-btn active" data-range="ALL">ALL</button>
+    </div>
+  </div>
+
+  <div id="chart"></div>
 
   <script>
-    const widget = new TradingView.widget({
-      container: 'tv_chart_container',
-      locale: 'he_IL',
-      library_path: 'charting_library/',
-      datafeed: new Datafeeds.UDFCompatibleDatafeed(
-        'https://fred-rbilbis-udf.YOUR-SUBDOMAIN.workers.dev'
-      ),
-      symbol: 'RBILBIS',
-      interval: '1M',
-      fullscreen: true,
-      overrides: {
-        'mainSeriesProperties.style': 2
-      }
+    const WORKER_ENDPOINT = 'https://YOUR-WORKER-NAME.YOUR-SUBDOMAIN.workers.dev/rbilbis';
+
+    const container = document.getElementById('chart');
+    const chart = LightweightCharts.createChart(container, {
+      width: container.clientWidth,
+      height: container.clientHeight,
+      layout: {
+        background: { color: '#ffffff' },
+        textColor: '#1f2937',
+      },
+      grid: {
+        vertLines: { color: '#f3f4f6' },
+        horzLines: { color: '#f3f4f6' },
+      },
+      rightPriceScale: {
+        borderColor: '#e5e7eb',
+      },
+      timeScale: {
+        borderColor: '#e5e7eb',
+      },
     });
+
+    const lineSeries = chart.addLineSeries({
+      color: '#2563eb',
+      lineWidth: 2,
+    });
+
+    let allData = [];
+
+    function dateToUnixSeconds(dateStr) {
+      const [y, m, d] = dateStr.split('-').map(Number);
+      return Math.floor(Date.UTC(y, m - 1, d) / 1000);
+    }
+
+    function applyRange(range) {
+      if (!allData.length) return;
+
+      const lastItem = allData[allData.length - 1];
+      const toTs = dateToUnixSeconds(lastItem.time);
+
+      if (range === 'ALL') {
+        chart.timeScale().fitContent();
+        return;
+      }
+
+      const yearsMap = { '1Y': 1, '3Y': 3, '5Y': 5, '10Y': 10 };
+      const years = yearsMap[range];
+      const [y, m, d] = lastItem.time.split('-').map(Number);
+      const fromTs = Math.floor(Date.UTC(y - years, m - 1, d) / 1000);
+
+      chart.timeScale().setVisibleRange({
+        from: fromTs,
+        to: toTs,
+      });
+    }
+
+    document.querySelectorAll('.range-btn').forEach(btn => {
+      btn.addEventListener('click', () => {
+        document.querySelectorAll('.range-btn').forEach(b => b.classList.remove('active'));
+        btn.classList.add('active');
+        applyRange(btn.dataset.range);
+      });
+    });
+
+    window.addEventListener('resize', () => {
+      chart.applyOptions({ width: container.clientWidth });
+    });
+
+    async function loadChart() {
+      try {
+        const response = await fetch(WORKER_ENDPOINT);
+        const data = await response.json();
+
+        if (!Array.isArray(data) || data.length === 0) {
+          throw new Error(data.error || 'לא התקבלו נתונים');
+        }
+
+        allData = data;
+        lineSeries.setData(allData);
+        chart.timeScale().fitContent();
+      } catch (err) {
+        container.innerHTML = `<p style="color:#dc2626;">שגיאה בטעינת הנתונים: ${err.message}</p>`;
+      }
+    }
+
+    loadChart();
   </script>
 </body>
 </html>
