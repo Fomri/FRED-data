@@ -1,0 +1,14 @@
+const widget = new TradingView.widget({
+  container: 'tv_chart_container',
+  locale: 'he_IL',
+  library_path: 'charting_library/',
+  datafeed: new Datafeeds.UDFCompatibleDatafeed(
+    'https://fred-rbilbis-udf.your-subdomain.workers.dev'
+  ),
+  symbol: 'RBILBIS',
+  interval: '1M',
+  fullscreen: true,
+  overrides: {
+    'mainSeriesProperties.style': 2, // גרף קו
+  },
+});
