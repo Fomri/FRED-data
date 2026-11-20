@@ -99,11 +99,16 @@
       },
     });
 
-    const lineSeries = chart.addLineSeries({
+const lineSeries = typeof chart.addSeries === 'function'
+  ? chart.addSeries(LightweightCharts.LineSeries, {
+      color: '#2563eb',
+      lineWidth: 2,
+    })
+  : chart.addLineSeries({
       color: '#2563eb',
       lineWidth: 2,
     });
-
+    
     let allData = [];
 
     function dateToUnixSeconds(dateStr) {
