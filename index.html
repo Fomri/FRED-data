@@ -1,114 +1,255 @@
 <!DOCTYPE html>
-<html lang="he" dir="rtl">
+<html lang="en" dir="ltr">
 <head>
   <meta charset="UTF-8" />
-  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
-  <title>RBILBIS - Lightweight Charts</title>
+  <meta
+    name="viewport"
+    content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no, viewport-fit=cover"
+  />
+  <meta name="apple-mobile-web-app-capable" content="yes" />
+  <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent" />
+  <meta name="apple-mobile-web-app-title" content="RBILBIS" />
+  <meta name="theme-color" content="#0b0e14" />
+  <link id="apple-icon" rel="apple-touch-icon" href="" />
+  <title>RBILBIS — FRED</title>
+
   <script src="https://unpkg.com/lightweight-charts/dist/lightweight-charts.standalone.production.js"></script>
+
   <style>
-    body {
-      margin: 0;
-      padding: 16px;
-      font-family: system-ui, -apple-system, sans-serif;
-      background: #ffffff;
-      color: #111827;
+    * {
+      box-sizing: border-box;
+      -webkit-tap-highlight-color: transparent;
     }
-    .header {
+
+    html, body {
+      margin: 0;
+      padding: 0;
+      width: 100%;
+      height: 100%;
+      background-color: #0b0e14;
+      color: #e5e7eb;
+      font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif;
+      overflow: hidden;
+      overscroll-behavior: none;
+    }
+
+    .app {
+      display: flex;
+      flex-direction: column;
+      height: 100dvh;
+      padding: max(14px, env(safe-area-inset-top)) 16px max(14px, env(safe-area-inset-bottom));
+      gap: 12px;
+    }
+
+    .top-bar {
       display: flex;
       flex-wrap: wrap;
       justify-content: space-between;
       align-items: center;
-      gap: 12px;
-      margin-bottom: 12px;
+      gap: 10px;
     }
+
+    .title-group {
+      display: flex;
+      align-items: center;
+      gap: 10px;
+    }
+
+    .fred-badge {
+      background: #1d4ed8;
+      color: #ffffff;
+      font-weight: 800;
+      font-size: 12px;
+      letter-spacing: 0.6px;
+      padding: 5px 8px;
+      border-radius: 6px;
+    }
+
     .title {
       font-size: 18px;
       font-weight: 700;
+      color: #f9fafb;
+      line-height: 1.2;
     }
+
     .subtitle {
-      font-size: 13px;
-      color: #6b7280;
+      font-size: 12px;
+      color: #9ca3af;
+      margin-top: 2px;
     }
+
     .range-switcher {
       display: flex;
       gap: 6px;
-      direction: ltr;
+      background: #131822;
+      padding: 4px;
+      border-radius: 10px;
+      border: 1px solid #1f2937;
     }
+
     .range-btn {
-      border: 1px solid #d1d5db;
-      background: #f9fafb;
-      color: #111827;
+      border: none;
+      background: transparent;
+      color: #9ca3af;
       padding: 6px 12px;
-      border-radius: 6px;
+      border-radius: 7px;
       cursor: pointer;
       font-size: 13px;
       font-weight: 600;
+      transition: all 0.15s ease;
     }
+
     .range-btn:hover {
-      background: #e5e7eb;
+      color: #f9fafb;
+      background: #1c2433;
     }
+
     .range-btn.active {
-      background: #2563eb;
+      background: #1e293b;
       color: #ffffff;
-      border-color: #2563eb;
+      box-shadow: 0 1px 2px rgba(0, 0, 0, 0.4);
     }
+
     #chart {
+      flex: 1;
       width: 100%;
-      height: 520px;
+      min-height: 260px;
+      touch-action: none;
+      border-radius: 10px;
+      overflow: hidden;
+    }
+
+    .status-msg {
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      height: 100%;
+      color: #9ca3af;
+      font-size: 14px;
+      text-align: center;
+      padding: 16px;
     }
   </style>
 </head>
 <body>
-  <div class="header">
-    <div>
-      <div class="title">RBILBIS — Real Broad Effective Exchange Rate for Israel</div>
-      <div class="subtitle">נתונים חודשיים מ-FRED דרך Cloudflare Worker</div>
+  <div class="app">
+    <div class="top-bar">
+      <div class="title-group">
+        <div class="fred-badge">FRED</div>
+        <div>
+          <div class="title">RBILBIS</div>
+          <div class="subtitle">Real Broad Effective Exchange Rate for Israel</div>
+        </div>
+      </div>
+
+      <div class="range-switcher" id="rangeSwitcher">
+        <button class="range-btn" data-range="1Y">1Y</button>
+        <button class="range-btn" data-range="3Y">3Y</button>
+        <button class="range-btn" data-range="5Y">5Y</button>
+        <button class="range-btn" data-range="10Y">10Y</button>
+        <button class="range-btn active" data-range="ALL">ALL</button>
+      </div>
     </div>
 
-    <div class="range-switcher" id="rangeSwitcher">
-      <button class="range-btn" data-range="1Y">1Y</button>
-      <button class="range-btn" data-range="3Y">3Y</button>
-      <button class="range-btn" data-range="5Y">5Y</button>
-      <button class="range-btn" data-range="10Y">10Y</button>
-      <button class="range-btn active" data-range="ALL">ALL</button>
-    </div>
+    <div id="chart"></div>
   </div>
 
-  <div id="chart"></div>
-
   <script>
+    // יצירת אייקון אפליקציה בסגנון FRED עבור iOS Add to Home Screen
+    (function generateFredAppIcon() {
+      const canvas = document.createElement('canvas');
+      canvas.width = 180;
+      canvas.height = 180;
+      const ctx = canvas.getContext('2d');
+
+      // רקע כחול עמוק
+      const grad = ctx.createLinearGradient(0, 0, 180, 180);
+      grad.addColorStop(0, '#1e40af');
+      grad.addColorStop(1, '#0f172a');
+      ctx.fillStyle = grad;
+      ctx.fillRect(0, 0, 180, 180);
+
+      // פס דק בתחתית שמזכיר גרף
+      ctx.strokeStyle = '#60a5fa';
+      ctx.lineWidth = 4;
+      ctx.beginPath();
+      ctx.moveTo(20, 145);
+      ctx.lineTo(60, 128);
+      ctx.lineTo(100, 136);
+      ctx.lineTo(160, 108);
+      ctx.stroke();
+
+      // טקסט FRED
+      ctx.fillStyle = '#ffffff';
+      ctx.font = '800 44px -apple-system, BlinkMacSystemFont, sans-serif';
+      ctx.textAlign = 'center';
+      ctx.textBaseline = 'middle';
+      ctx.fillText('FRED', 90, 74);
+
+      document.getElementById('apple-icon').href = canvas.toDataURL('image/png');
+    })();
+
+    // מניעת Pinch-to-Zoom של הדפדפן ב-iOS Safari
+    document.addEventListener('gesturestart', (e) => e.preventDefault(), { passive: false });
+    document.addEventListener('gesturechange', (e) => e.preventDefault(), { passive: false });
+    document.addEventListener('gestureend', (e) => e.preventDefault(), { passive: false });
+
     const WORKER_ENDPOINT = 'https://fred-rbilbis-udf.fomri2009.workers.dev/rbilbis';
-    
     const container = document.getElementById('chart');
+
     const chart = LightweightCharts.createChart(container, {
       width: container.clientWidth,
       height: container.clientHeight,
       layout: {
-        background: { color: '#ffffff' },
-        textColor: '#1f2937',
+        background: { type: 'solid', color: '#0b0e14' },
+        textColor: '#9ca3af',
       },
       grid: {
-        vertLines: { color: '#f3f4f6' },
-        horzLines: { color: '#f3f4f6' },
+        vertLines: { color: 'rgba(255, 255, 255, 0.04)' },
+        horzLines: { color: 'rgba(255, 255, 255, 0.06)' },
+      },
+      crosshair: {
+        mode: LightweightCharts.CrosshairMode.Normal,
       },
       rightPriceScale: {
-        borderColor: '#e5e7eb',
+        borderColor: 'rgba(255, 255, 255, 0.08)',
       },
       timeScale: {
-        borderColor: '#e5e7eb',
+        borderColor: 'rgba(255, 255, 255, 0.08)',
+        fixLeftEdge: false,
+        fixRightEdge: false,
+      },
+      handleScroll: {
+        mouseWheel: true,
+        pressedMouseMove: true,
+        horzTouchDrag: true,
+        vertTouchDrag: true,
+      },
+      handleScale: {
+        axisPressedMouseMove: true,
+        mouseWheel: true,
+        pinch: true,
+        axisDoubleClickReset: true,
       },
     });
 
-const lineSeries = typeof chart.addSeries === 'function'
-  ? chart.addSeries(LightweightCharts.LineSeries, {
-      color: '#2563eb',
-      lineWidth: 2,
-    })
-  : chart.addLineSeries({
-      color: '#2563eb',
-      lineWidth: 2,
-    });
-    
+    const areaSeries = typeof chart.addSeries === 'function'
+      ? chart.addSeries(LightweightCharts.AreaSeries, {
+          lineColor: '#2962ff',
+          topColor: 'rgba(41, 98, 255, 0.38)',
+          bottomColor: 'rgba(41, 98, 255, 0.01)',
+          lineWidth: 2,
+          priceLineVisible: true,
+          priceLineStyle: LightweightCharts.LineStyle.Dashed,
+          priceLineColor: '#2962ff',
+        })
+      : chart.addAreaSeries({
+          lineColor: '#2962ff',
+          topColor: 'rgba(41, 98, 255, 0.38)',
+          bottomColor: 'rgba(41, 98, 255, 0.01)',
+          lineWidth: 2,
+        });
+
     let allData = [];
 
     function dateToUnixSeconds(dateStr) {
@@ -119,14 +260,13 @@ const lineSeries = typeof chart.addSeries === 'function'
     function applyRange(range) {
       if (!allData.length) return;
 
-      const lastItem = allData[allData.length - 1];
-      const toTs = dateToUnixSeconds(lastItem.time);
-
       if (range === 'ALL') {
         chart.timeScale().fitContent();
         return;
       }
 
+      const lastItem = allData[allData.length - 1];
+      const toTs = dateToUnixSeconds(lastItem.time);
       const yearsMap = { '1Y': 1, '3Y': 3, '5Y': 5, '10Y': 10 };
       const years = yearsMap[range];
       const [y, m, d] = lastItem.time.split('-').map(Number);
@@ -138,17 +278,21 @@ const lineSeries = typeof chart.addSeries === 'function'
       });
     }
 
-    document.querySelectorAll('.range-btn').forEach(btn => {
+    document.querySelectorAll('.range-btn').forEach((btn) => {
       btn.addEventListener('click', () => {
-        document.querySelectorAll('.range-btn').forEach(b => b.classList.remove('active'));
+        document.querySelectorAll('.range-btn').forEach((b) => b.classList.remove('active'));
         btn.classList.add('active');
         applyRange(btn.dataset.range);
       });
     });
 
-    window.addEventListener('resize', () => {
-      chart.applyOptions({ width: container.clientWidth });
+    const resizeObserver = new ResizeObserver(() => {
+      chart.applyOptions({
+        width: container.clientWidth,
+        height: container.clientHeight,
+      });
     });
+    resizeObserver.observe(container);
 
     async function loadChart() {
       try {
@@ -156,14 +300,14 @@ const lineSeries = typeof chart.addSeries === 'function'
         const data = await response.json();
 
         if (!Array.isArray(data) || data.length === 0) {
-          throw new Error(data.error || 'לא התקבלו נתונים');
+          throw new Error(data.error || 'No data returned');
         }
 
         allData = data;
-        lineSeries.setData(allData);
+        areaSeries.setData(allData);
         chart.timeScale().fitContent();
       } catch (err) {
-        container.innerHTML = `<p style="color:#dc2626;">שגיאה בטעינת הנתונים: ${err.message}</p>`;
+        container.innerHTML = `<div class="status-msg" style="color:#f87171;">Error loading data: ${err.message}</div>`;
       }
     }
 
